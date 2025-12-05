@@ -44,11 +44,13 @@ function getNewMoonDay(k, timeZone) {
     29.10535608 * k -
     0.0000333 * T2 -
     0.00000347 * T3;
+
   let Mpr =
     306.0253 +
     385.81691806 * k +
     0.0107306 * T2 +
     0.00001236 * T3;
+
   let F =
     21.2964 +
     390.67050646 * k -
@@ -150,25 +152,22 @@ function solarToLunar(dd, mm, yy, timeZone = 7) {
 }
 
 /* =============================
-   📌 /home
+   📌 ROUTES API GỘP
 ==============================*/
+
+// 🔹 /home
 app.get("/home", (req, res) => {
   res.json({
-    api: "API Âm Lịch + Ping",
+    api: "Âm lịch + Ping API",
     author: "fsdfsdf",
-    endpoints: {
-      "/amlich": "Lấy ngày âm lịch hiện tại",
-      "/ping?url=https://example.com": "Kiểm tra website online/offline"
-    }
+    endpoints: ["/amlich", "/ping?url=", "/home"]
   });
 });
 
-/* =============================
-   📌 /amlich
-==============================*/
+// 🔹 /amlich
 app.get("/amlich", (req, res) => {
   const now = new Date();
-  const lunar = solarToLunar(now.getDate(), now.getMonth() + 1, now.getFullYear(), 7);
+  const lunar = solarToLunar(now.getDate(), now.getMonth() + 1, now.getFullYear());
 
   res.json({
     status: "success",
@@ -178,25 +177,17 @@ app.get("/amlich", (req, res) => {
   });
 });
 
-/* =============================
-   📌 /ping
-==============================*/
+// 🔹 /ping
 app.get("/ping", async (req, res) => {
-  const targetUrl = req.query.url;
-  if (!targetUrl)
+  const url = req.query.url;
+  if (!url)
     return res.status(400).json({ error: "Thiếu ?url=" });
 
   try {
-    const response = await fetch(targetUrl);
-    res.json({
-      status: "online",
-      code: response.status,
-    });
-  } catch (err) {
-    res.json({
-      status: "offline",
-      message: err.message
-    });
+    const response = await fetch(url);
+    res.json({ status: "online", code: response.status });
+  } catch (e) {
+    res.json({ status: "offline", error: e.message });
   }
 });
 
