@@ -3,9 +3,9 @@ import serverless from "serverless-http";
 
 const app = express();
 
-/* =====================================================
-   📌 BỘ HÀM CHUẨN TÍNH ÂM LỊCH VIỆT NAM (FIX CUỐI)
-===================================================== */
+/* =============================
+   📌 HÀM TÍNH ÂM LỊCH CHUẨN VN
+==============================*/
 
 function jdFromDate(dd, mm, yy) {
   let a = Math.floor((14 - mm) / 12);
@@ -142,76 +142,55 @@ function solarToLunar(dd, mm, yy, timeZone = 7) {
   let lunarDay = dayNumber - monthStart + 1;
   let diff = Math.floor((monthStart - a11) / 29);
   let lunarMonth = diff + 11;
-  let leap = 0;
-
-  if (b11 - a11 > 365) {
-    let leapMonth = getLeapMonthOffset(a11, timeZone);
-    if (diff >= leapMonth) {
-      lunarMonth = diff + 10;
-      if (diff === leapMonth) leap = 1;
-    }
-  }
 
   if (lunarMonth > 12) lunarMonth -= 12;
   if (lunarMonth >= 11 && diff < 4) lunarYear--;
 
-  return { day: lunarDay, month: lunarMonth, year: lunarYear, leap };
+  return { day: lunarDay, month: lunarMonth, year: lunarYear };
 }
 
-/* =====================================================
-   🏠 /home
-===================================================== */
+/* =============================
+   📌 /home
+==============================*/
 app.get("/home", (req, res) => {
   res.json({
-    api: "Âm lịch & Ping API (Chuẩn Việt Nam)",
-    version: "5.0.0",
+    api: "API Âm Lịch + Ping",
     author: "fsdfsdf",
     endpoints: {
-      "/home": "Giới thiệu API",
-      "/amlich": "Ngày âm & dương chuẩn Việt Nam",
-      "/ping?url=https://example.com": "Kiểm tra trạng thái website"
+      "/amlich": "Lấy ngày âm lịch hiện tại",
+      "/ping?url=https://example.com": "Kiểm tra website online/offline"
     }
   });
 });
 
-/* =====================================================
-   📅 /amlich
-===================================================== */
+/* =============================
+   📌 /amlich
+==============================*/
 app.get("/amlich", (req, res) => {
   const now = new Date();
-  const dd = now.getDate();
-  const mm = now.getMonth() + 1;
-  const yy = now.getFullYear();
-
-  const lunar = solarToLunar(dd, mm, yy, 7);
+  const lunar = solarToLunar(now.getDate(), now.getMonth() + 1, now.getFullYear(), 7);
 
   res.json({
     status: "success",
-    solar_date: `${dd}/${mm}/${yy}`,
+    solar_date: `${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear()}`,
     lunar_date: `${lunar.day}/${lunar.month}/${lunar.year}`,
-    leap_month: lunar.leap === 1 ? "tháng nhuận" : "không nhuận",
     time: now.toLocaleTimeString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })
   });
 });
 
-/* =====================================================
-   🌐 /ping
-===================================================== */
+/* =============================
+   📌 /ping
+==============================*/
 app.get("/ping", async (req, res) => {
   const targetUrl = req.query.url;
   if (!targetUrl)
     return res.status(400).json({ error: "Thiếu ?url=" });
 
   try {
-    const urlObj = new URL(targetUrl);
     const response = await fetch(targetUrl);
-
     res.json({
       status: "online",
       code: response.status,
-      protocol: urlObj.protocol,
-      hostname: urlObj.hostname,
-      port: urlObj.port || (urlObj.protocol === "https:" ? 443 : 80)
     });
   } catch (err) {
     res.json({
