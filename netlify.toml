@@ -1,8 +1,17 @@
 [build]
   functions = "netlify/functions"
-  command = "npm install"
 
 [[redirects]]
-  from = "/*"
-  to = "/.netlify/functions/api"
+  from = "/amlich"
+  to = "/.netlify/functions/api/amlich"
+  status = 200
+
+[[redirects]]
+  from = "/ping"
+  to = "/.netlify/functions/api/ping"
+  status = 200
+
+[[redirects]]
+  from = "/home"
+  to = "/.netlify/functions/api/home"
   status = 200
