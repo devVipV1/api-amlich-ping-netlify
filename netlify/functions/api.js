@@ -4,24 +4,22 @@ import serverless from "serverless-http";
 const app = express();
 
 /* =====================================================
-   📌 BỘ HÀM CHUẨN TÍNH ÂM LỊCH VIỆT NAM
-   Thuật toán dựa theo công thức thiên văn của NASA + 
-   cải tiến từ Lịch Việt Nam của Hoàng Gia Thái Lan.
+   📌 BỘ HÀM CHUẨN TÍNH ÂM LỊCH VIỆT NAM (FIX CUỐI)
 ===================================================== */
 
 function jdFromDate(dd, mm, yy) {
   let a = Math.floor((14 - mm) / 12);
   let y = yy + 4800 - a;
   let m = mm + 12 * a - 3;
-  let jd =
+  return (
     dd +
     Math.floor((153 * m + 2) / 5) +
     365 * y +
     Math.floor(y / 4) -
     Math.floor(y / 100) +
     Math.floor(y / 400) -
-    32045;
-  return jd;
+    32045
+  );
 }
 
 function getNewMoonDay(k, timeZone) {
@@ -30,15 +28,17 @@ function getNewMoonDay(k, timeZone) {
   let T2 = T * T;
   let T3 = T2 * T;
   let dr = PI / 180;
+
   let Jd1 =
     2415020.75933 +
     29.53058868 * k +
     0.0001178 * T2 -
     0.000000155 * T3;
-  Jd1 =
-    Jd1 +
+
+  Jd1 +=
     0.00033 *
-      (Math.sin((166.56 + 132.87 * T - 0.009173 * T2) * dr));
+    Math.sin((166.56 + 132.87 * T - 0.009173 * T2) * dr);
+
   let M =
     359.2242 +
     29.10535608 * k -
@@ -79,22 +79,51 @@ function getSunLongitude(jdn, timeZone) {
   let T = (jdn - 2451545.5 - timeZone / 24) / 36525;
   let T2 = T * T;
   let dr = PI / 180;
+
   let M =
     357.5291 +
     35999.0503 * T -
     0.0001559 * T2 -
     0.00000048 * T * T2;
+
   let L0 =
     280.46645 +
     36000.76983 * T +
     0.0003032 * T2;
+
   let DL =
     (1.9146 - 0.004817 * T - 0.000014 * T2) * Math.sin(M * dr) +
     (0.019993 - 0.000101 * T) * Math.sin(2 * M * dr) +
     0.00029 * Math.sin(3 * M * dr);
+
   let L = (L0 + DL) * dr;
-  L = L - PI * 2 * Math.floor(L / (2 * PI));
+  L = L - Math.floor(L / (2 * PI)) * 2 * PI;
+
   return Math.floor((L / PI) * 6);
+}
+
+function getLunarMonth11(yy, timeZone) {
+  let off = jdFromDate(31, 12, yy) - 2415021.076998695;
+  let k = Math.floor(off / 29.530588853);
+  let nm = getNewMoonDay(k, timeZone);
+  let sunLong = getSunLongitude(nm, timeZone);
+  if (sunLong >= 9) nm = getNewMoonDay(k - 1, timeZone);
+  return nm;
+}
+
+function getLeapMonthOffset(a11, timeZone) {
+  let k = Math.floor((a11 - 2415021.076998695) / 29.530588853);
+  let last = 0;
+  let i = 1;
+  let arc = getSunLongitude(getNewMoonDay(k + i, timeZone), timeZone);
+
+  do {
+    last = arc;
+    i++;
+    arc = getSunLongitude(getNewMoonDay(k + i, timeZone), timeZone);
+  } while (arc !== last && i < 14);
+
+  return i - 1;
 }
 
 function solarToLunar(dd, mm, yy, timeZone = 7) {
@@ -104,51 +133,50 @@ function solarToLunar(dd, mm, yy, timeZone = 7) {
   let monthStart = getNewMoonDay(k + 1, timeZone);
   if (monthStart > dayNumber) monthStart = getNewMoonDay(k, timeZone);
 
-  let a11 = getNewMoonDay(
-    Math.floor((jdFromDate(31, 12, yy) - 2415021.076998695) / 29.530588853),
-    timeZone
-  );
+  let a11 = getLunarMonth11(yy, timeZone);
+  let b11 = getLunarMonth11(yy + 1, timeZone);
 
-  let b11 = getNewMoonDay(
-    Math.floor((jdFromDate(31, 12, yy + 1) - 2415021.076998695) / 29.530588853),
-    timeZone
-  );
+  let lunarYear = yy;
+  if (a11 > monthStart) lunarYear = yy - 1;
 
   let lunarDay = dayNumber - monthStart + 1;
   let diff = Math.floor((monthStart - a11) / 29);
-
   let lunarMonth = diff + 11;
-  let lunarYear = yy;
+  let leap = 0;
 
-  if (lunarMonth > 12) {
-    lunarMonth -= 12;
-  }
-  if (lunarMonth >= 11 && diff < 4) {
-    lunarYear = yy - 1;
+  if (b11 - a11 > 365) {
+    let leapMonth = getLeapMonthOffset(a11, timeZone);
+    if (diff >= leapMonth) {
+      lunarMonth = diff + 10;
+      if (diff === leapMonth) leap = 1;
+    }
   }
 
-  return { day: lunarDay, month: lunarMonth, year: lunarYear };
+  if (lunarMonth > 12) lunarMonth -= 12;
+  if (lunarMonth >= 11 && diff < 4) lunarYear--;
+
+  return { day: lunarDay, month: lunarMonth, year: lunarYear, leap };
 }
 
 /* =====================================================
-   API
+   🏠 /home
 ===================================================== */
-
-// /home
 app.get("/home", (req, res) => {
   res.json({
-    api: "Âm lịch & Ping API",
-    version: "4.0.0 (Fixed Lunar Algorithm)",
+    api: "Âm lịch & Ping API (Chuẩn Việt Nam)",
+    version: "5.0.0",
     author: "fsdfsdf",
     endpoints: {
       "/home": "Giới thiệu API",
-      "/amlich": "Ngày âm & dương hiện tại (chuẩn VN)",
+      "/amlich": "Ngày âm & dương chuẩn Việt Nam",
       "/ping?url=https://example.com": "Kiểm tra trạng thái website"
     }
   });
 });
 
-// /amlich
+/* =====================================================
+   📅 /amlich
+===================================================== */
 app.get("/amlich", (req, res) => {
   const now = new Date();
   const dd = now.getDate();
@@ -161,11 +189,14 @@ app.get("/amlich", (req, res) => {
     status: "success",
     solar_date: `${dd}/${mm}/${yy}`,
     lunar_date: `${lunar.day}/${lunar.month}/${lunar.year}`,
+    leap_month: lunar.leap === 1 ? "tháng nhuận" : "không nhuận",
     time: now.toLocaleTimeString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })
   });
 });
 
-// /ping
+/* =====================================================
+   🌐 /ping
+===================================================== */
 app.get("/ping", async (req, res) => {
   const targetUrl = req.query.url;
   if (!targetUrl)
